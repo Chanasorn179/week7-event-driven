@@ -1,0 +1,145 @@
+# ==============================================================
+# Docker Compose — Event-Driven Architecture
+# ENGSE207 Term Project Week 7
+#
+# Services:
+#   1. db                    — PostgreSQL
+#   2. rabbitmq              — RabbitMQ Message Broker ← NEW!
+#   3. task-service          — CRUD + Event Publisher
+#   4. notification-service  — Event Consumer (Notifications)
+#   5. audit-service         — Event Consumer (Audit Log)
+#   6. api-gateway           — Single Entry Point
+#
+# Usage:
+#   docker compose up -d --build
+#   docker compose logs -f task-service notification-service audit-service
+#   Open: http://localhost:3000 (App) | http://localhost:15672 (RabbitMQ UI)
+# ==============================================================
+
+services:
+
+  # === PostgreSQL ===
+  db:
+    image: postgres:16-alpine
+    container_name: taskboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taskboard_db}
+      POSTGRES_USER: ${POSTGRES_USER:-taskboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskboard123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskboard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskboard-events
+
+  # === RabbitMQ Message Broker — NEW! ===
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: taskboard-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    ports:
+      - "15672:15672"   # Management UI
+      # - "5672:5672"   # AMQP (ไม่ต้อง expose ออกนอก)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - taskboard-events
+
+  # === Task Service (Publisher) ===
+  task-service:
+    build:
+      context: ./task-service
+      dockerfile: Dockerfile
+    container_name: taskboard-task-svc
+    restart: unless-stopped
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-taskboard_db}
+      - POSTGRES_USER=${POSTGRES_USER:-taskboard}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-taskboard123}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672
+      - TASK_SERVICE_PORT=3001
+    volumes:
+      - ./shared:/app/shared:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - taskboard-events
+
+  # === Notification Service (Consumer) ===
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: taskboard-notif-svc
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672
+    volumes:
+      - ./shared:/app/shared:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - taskboard-events
+
+  # === Audit Service (Consumer) ===
+  audit-service:
+    build:
+      context: ./audit-service
+      dockerfile: Dockerfile
+    container_name: taskboard-audit-svc
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672
+    volumes:
+      - ./shared:/app/shared:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - taskboard-events
+
+  # === API Gateway ===
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: taskboard-gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - TASK_SERVICE_URL=http://task-service:3001
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3002
+      - AUDIT_SERVICE_URL=http://audit-service:3003
+    depends_on:
+      - task-service
+      - notification-service
+      - audit-service
+    networks:
+      - taskboard-events
+
+networks:
+  taskboard-events:
+    driver: bridge
+
+volumes:
+  postgres_data:

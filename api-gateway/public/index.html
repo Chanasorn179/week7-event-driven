@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskBoard — Event-Driven Architecture</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <h1>📡 TaskBoard <small>Event-Driven Architecture</small></h1>
+        <div class="header-badges">
+            <span id="notif-badge" class="badge">🔔 0</span>
+            <span id="audit-badge" class="badge">📋 0</span>
+        </div>
+    </header>
+
+    <main>
+        <section id="stats-panel"></section>
+
+        <section id="add-task">
+            <h2>➕ Add Task</h2>
+            <form id="task-form">
+                <input type="text" id="title" placeholder="Task title..." required>
+                <select id="priority">
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM" selected>Medium</option>
+                    <option value="HIGH">High</option>
+                </select>
+                <button type="submit">Add</button>
+            </form>
+        </section>
+
+        <div class="grid-3">
+            <section id="board">
+                <h2>📋 Task Board</h2>
+                <div class="columns">
+                    <div class="column" id="todo"><h3>📝 TODO</h3><div class="tasks"></div></div>
+                    <div class="column" id="in_progress"><h3>🔄 IN PROGRESS</h3><div class="tasks"></div></div>
+                    <div class="column" id="done"><h3>✅ DONE</h3><div class="tasks"></div></div>
+                </div>
+            </section>
+        </div>
+
+        <div class="grid-2">
+            <section id="notifications-panel">
+                <h2>🔔 Notifications <small>(from Event Consumer)</small></h2>
+                <div id="notifications-list" class="log-box"></div>
+            </section>
+
+            <section id="audit-panel">
+                <h2>📋 Audit Log <small>(from Event Consumer)</small></h2>
+                <div id="audit-list" class="log-box"></div>
+            </section>
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const c = require('../controllers/taskController');
+router.get('/tasks', (req, res, next) => c.getAll(req, res, next));
+router.get('/tasks/stats', (req, res, next) => c.stats(req, res, next));
+router.get('/tasks/:id', (req, res, next) => c.getById(req, res, next));
+router.post('/tasks', (req, res, next) => c.create(req, res, next));
+router.put('/tasks/:id', (req, res, next) => c.update(req, res, next));
+router.delete('/tasks/:id', (req, res, next) => c.delete(req, res, next));
+module.exports = router;
